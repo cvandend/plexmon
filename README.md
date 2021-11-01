@@ -6,6 +6,10 @@ to let the transcoder start up more smoothly.
 
 This script assumes that you are using the NiceHash QuickMiner on a Windows system.
 
+Using and tweaked version of `nicehash.py` from:
+
+    https://github.com/nicehash/rest-clients-demo
+
 ## Required Python Modules
 
 - Plex API Python module
@@ -13,12 +17,6 @@ This script assumes that you are using the NiceHash QuickMiner on a Windows syst
     https://pypi.org/project/PlexAPI/
 
 Install running: `pip install plexapi`
-
-- NiceHash API Python module
-
-    https://github.com/nicehash/rest-clients-demo
-
-Checkout and copy `nicehash.py` into the same directory as `plexmon.py`
 
 
 ## Configuration
