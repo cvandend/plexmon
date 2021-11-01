@@ -6,7 +6,7 @@ to let the transcoder start up more smoothly.
 
 This script assumes that you are using the NiceHash QuickMiner on a Windows system.
 
-Using and tweaked version of `nicehash.py` from:
+Using a tweaked version of `nicehash.py` from:
 
 https://github.com/nicehash/rest-clients-demo
     
