@@ -8,7 +8,8 @@ This script assumes that you are using the NiceHash QuickMiner on a Windows syst
 
 Using and tweaked version of `nicehash.py` from:
 
-    https://github.com/nicehash/rest-clients-demo
+https://github.com/nicehash/rest-clients-demo
+    
 
 ## Required Python Modules
 
