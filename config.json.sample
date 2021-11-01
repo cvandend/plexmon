@@ -1,0 +1,14 @@
+{
+    "plex": {
+        "api_url": "http://127.0.0.1:32400",
+        "token": ""
+    },
+    "nicehash": {
+        "api_url": "https://api2.nicehash.com",
+        "organisation_id": "",
+		"api_key": "",
+		"api_secret": "",
+		"card_name": "GeForce RTX 3080",
+		"process_name": "excavator.exe"
+    }
+}
