@@ -2,7 +2,7 @@
 #   Monitor Plex to see if there is a new stream that is transcoding, and then pause selected NiceHash 
 #   rig for X seconds to let the transcoder start up more smoothly.
 #
-#   v0.5    Christian Vandendorpe
+#   v0.6    Christian Vandendorpe
 #
 #   Plex Python module: 
 #       https://pypi.org/project/PlexAPI/
@@ -18,9 +18,10 @@ import time
 import psutil
 import json
 import argparse
+import datetime
 
 TIME_SLEEP = 20                 # How often to check Plex in seconds
-TIME_RIGPAUSE = 120             # How long to pause rig in seconds
+TIME_RIGPAUSE = 180             # How long to pause rig in seconds
 TIME_RIGCHECK = 300             # How often to check if rig is hung in seconds
 
 parser = argparse.ArgumentParser(
@@ -50,7 +51,9 @@ g_current_streams = []
 
 g_rig_id = ''
 g_rig_deviceid = 0
+g_rig_deviceidx = 0
 g_rig_ismining = False
+g_rig_shouldmine = True
 
 g_rig_time_pause_until = 0
 
@@ -75,6 +78,7 @@ nh_api = nicehash.private_api(config['nicehash']['api_url'],
 def nh_find_rig(api):
     global g_rig_id
     global g_rig_deviceid
+    global g_rig_deviceidx
     global g_rig_ismining
 
     try:
@@ -90,6 +94,7 @@ def nh_find_rig(api):
                 g_rig_deviceid = rig['id']
                 g_rig_ismining = (rig['status']['enumName'] == 'MINING')
                 return True
+            g_rig_deviceidx += 1
 
     return False
 
@@ -115,21 +120,19 @@ if not nh_find_rig(nh_api):
 
 g_nh_checked_rig = time.time()
 
-if not g_rig_ismining:
-    print("Error: Rig is currently not mining")
-    exit(0)
-
-# Get rig status
-#nh_get_rig_status(nh_api)
-
 firstLoop = True
-print("> Ready, starting monitoring!")
+
+if not g_rig_ismining:
+    print(f"[{str(datetime.datetime.now())}] > Ready, rig is currently not mining")
+    g_rig_shouldmine = False
+else:
+    print(f"[{str(datetime.datetime.now())}] > Ready, starting monitoring!")
 
 while True:
     try:
         sessions = plex.sessions()
     except Exception as e:
-        print("Warning: could not query Plex: ",e.__class__,e)
+        print(f"[{str(datetime.datetime.now())}] Warning: could not query Plex: ",e.__class__,e)
         time.sleep(TIME_SLEEP)
         continue
 
@@ -145,30 +148,30 @@ while True:
             current_streams.append(name)
     g_current_streams = current_streams
 
-    if new_stream:
+    if g_rig_shouldmine and new_stream:
         print(g_current_streams)
         if not firstLoop:
             g_rig_time_pause_until = time_now + TIME_RIGPAUSE
-            print("> New stream detected, pausing rig until: " + 
+            print(f"[{str(datetime.datetime.now())}] > New stream detected, pausing rig until: " + 
                   time.asctime(time.localtime(g_rig_time_pause_until)))
     
     if (g_rig_time_pause_until > 0):
         if time_now < g_rig_time_pause_until:
             if g_rig_ismining:
-                print("!> Stopping rig")
+                print(f"[{str(datetime.datetime.now())}] !> Stopping rig")
                 try:
                     nh_api.set_mining_rig(g_rig_id, g_rig_deviceid, "STOP")
                 except Exception as e:
-                    print("> Error: Unable to stop rig")
+                    print(f"[{str(datetime.datetime.now())}] > Error: Unable to stop rig")
                 else:
                     g_rig_ismining = False
         else:
             if not g_rig_ismining:
-                print("!> Starting rig again")
+                print(f"[{str(datetime.datetime.now())}] !> Starting rig again")
                 try:
                     nh_api.set_mining_rig(g_rig_id, g_rig_deviceid, "START")
                 except Exception as e:
-                    print("> Error: Unable to start rig")
+                    print(f"[{str(datetime.datetime.now())}] > Error: Unable to start rig")
                     # Will try to start again on the next loop
                 else:
                     g_rig_ismining = True
@@ -182,10 +185,11 @@ while True:
         try:
             rigs = nh_api.get_mining_rigs()
         except Exception as e:
-            print("> Error: Unable to query rig status")
+            print(f"[{str(datetime.datetime.now())}] > Error: Unable to query rig status")
         else:
             if 'UNKNOWN' in rigs['minerStatuses']:
-                print("Error: NiceHash rig seems to be hung!")
+                # Mining rig state is unknown, usually means crashed
+                print(f"[{str(datetime.datetime.now())}] Error: NiceHash rig seems to be hung!")
                 for proc in psutil.process_iter():
                     if proc.name() == config['nicehash']['process_name']:
                         # Kill process and wait a bit until it is restarted                        
@@ -196,6 +200,20 @@ while True:
                         # Query rig status again
                         nh_get_rig_status(nh_api)
                         break
+            # Check if rig was disabled and is back up now
+            elif (not g_rig_shouldmine 
+                  and rigs['miningRigs'][0]['devices'][g_rig_deviceidx]['status']['enumName'] == 'MINING'):
+                # Rig was set offline and now it is enabled again, so restart monitoring
+                g_rig_shouldmine = True
+                g_rig_ismining = True
+                print(f"[{str(datetime.datetime.now())}] > Rig is enabled again, starting monitoring!")
+            elif (g_rig_shouldmine 
+                  and g_rig_ismining 
+                  and rigs['miningRigs'][0]['devices'][g_rig_deviceidx]['status']['enumName'] != 'MINING'):
+                # Rig was supposed to be mining but seems to have been disabled, stop monitoring
+                g_rig_shouldmine = False
+                print(f"[{str(datetime.datetime.now())}] > Rig seems to have been disabled externally, stoping monitoring")
+
 
     # Sleep and loop again
     time.sleep(TIME_SLEEP)
